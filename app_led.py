@@ -1,6 +1,24 @@
 import streamlit as st
+import subprocess
+import sys
+
+# ==========================================
+# 🚑 BLOQUE DE AUTO-REPARACIÓN (EMERGENCIA)
+# ==========================================
+# Esto fuerza la instalación si el servidor ignoró el requirements.txt
+try:
+    import xlsxwriter
+except ImportError:
+    # Si no lo encuentra, lo instalamos a la fuerza usando pip desde adentro
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "xlsxwriter"])
+    import xlsxwriter
+
+# ==========================================
+# INICIO DEL PROGRAMA NORMAL
+# ==========================================
 import math
 import pandas as pd
+import io
 
 # ==========================================
 # 0. FUNCIÓN DE LOCALIZACIÓN Y EXPORTACIÓN
@@ -38,7 +56,7 @@ def generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     texto += "\n" + "=" * 70 + "\nFIN DEL REPORTE TECNICO.\n" + "=" * 70 + "\n"
     return texto
 
-def generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
+def generar_excel_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     data = []
     
     # Encabezado
@@ -80,9 +98,18 @@ def generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     data.append(["--- INGENIERÍA ESTRUCTURAL E IZAJE ---", ""])
     for k, v in calc_rig.calcular_izaje().items(): data.append([k, v])
 
-    # Convertir a DataFrame y exportar nativamente a CSV
+    # Convertir a DataFrame de Pandas y usar el motor XlsxWriter
     df = pd.DataFrame(data, columns=["Parámetro", "Especificación Técnica"])
-    return df.to_csv(index=False, sep=';').encode('utf-8-sig')
+    output = io.BytesIO()
+    
+    # Motor XlsxWriter explícito
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Reporte Ingeniería LED')
+        worksheet = writer.sheets['Reporte Ingeniería LED']
+        worksheet.set_column('A:A', 40)
+        worksheet.set_column('B:B', 80)
+        
+    return output.getvalue()
 
 # ==========================================
 # 1. MÓDULOS DE CLASES (Core Lógico)
@@ -399,8 +426,8 @@ with col_btn_txt:
     st.download_button(label="📄 Descargar TXT", data=reporte_txt, file_name="Reporte_LED.txt", mime="text/plain", use_container_width=True)
 
 with col_btn_xls:
-    reporte_csv = generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
-    st.download_button(label="📊 Descargar Excel", data=reporte_csv, file_name="Reporte_Ingenieria_LED.csv", mime="text/csv", use_container_width=True)
+    reporte_xls = generar_excel_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+    st.download_button(label="📊 Descargar Excel", data=reporte_xls, file_name="Reporte_Ingenieria_LED.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 # --- VISTA PRINCIPAL (RESULTADOS) ---
 st.markdown(f"#### Medida Solicitada: **{formato_latam(req_w/1000, 2)} m (Ancho) x {formato_latam(req_h/1000, 2)} m (Alto)**")

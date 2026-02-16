@@ -1,5 +1,7 @@
 import streamlit as st
 import math
+import pandas as pd
+import io
 
 # ==========================================
 # 0. FUNCIÓN DE LOCALIZACIÓN Y EXPORTACIÓN
@@ -17,50 +19,81 @@ def generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     texto = "=" * 70 + "\n"
     texto += "          REPORTE DE INGENIERIA - SISTEMA LEDSCREENCALC\n"
     texto += "=" * 70 + "\n\n"
-    
     texto += f"[A] DISENO DE HARDWARE (MEDIDA SOLICITADA: {formato_latam(req_w/1000, 2)}m x {formato_latam(req_h/1000, 2)}m)\n\n"
     texto += "  --- OPCION 1: AJUSTE IDEAL ---\n"
-    for k, v in res_hw["Opcion 1 (Ideal)"]["formatted"].items():
-        texto += f"    > {k}: {v}\n"
-
+    for k, v in res_hw["Opcion 1 (Ideal)"]["formatted"].items(): texto += f"    > {k}: {v}\n"
     texto += "\n  --- OPCION 2: AJUSTE INFERIOR ---\n"
-    for k, v in res_hw["Opcion 2 (Inferior)"]["formatted"].items():
-        texto += f"    > {k}: {v}\n"
-
+    for k, v in res_hw["Opcion 2 (Inferior)"]["formatted"].items(): texto += f"    > {k}: {v}\n"
     texto += "\n  --- OPCION 3: AJUSTE SUPERIOR ---\n"
-    for k, v in res_hw["Opcion 3 (Superior)"]["formatted"].items():
-        texto += f"    > {k}: {v}\n"
-
-    texto += "\n" + "-" * 50 + "\n"
-    texto += "[B] CRITERIOS DE VISUALIZACION\n"
-    for k, v in res_hw["Visualizacion"].items():
-        texto += f"  > {k}: {v}\n"
-
-    texto += "\n" + "-" * 50 + "\n"
-    texto += "[C] INGENIERIA DE PROCESAMIENTO Y DATA\n"
-    for k, v in calc_proc.calcular_procesamiento().items():
-        texto += f"  > {k}: {v}\n"
-
-    texto += "\n" + "-" * 50 + "\n"
-    texto += "[D] HARDWARE DEL PROCESADOR (TOPOLOGIA)\n"
-    for k, v in calc_proc.calcular_hardware_procesador().items():
-        texto += f"  > {k}: {v}\n"
-
-    texto += "\n" + "-" * 50 + "\n"
-    texto += "[E] INGENIERIA ELECTRICA Y CLIMATIZACION (Opcion 1)\n"
-    for k, v in calc_pwr.calcular_energia_y_clima().items():
-        texto += f"  > {k}: {v}\n"
-
-    texto += "\n" + "-" * 50 + "\n"
-    texto += "[F] INGENIERIA ESTRUCTURAL E IZAJE (Opcion 1)\n"
-    for k, v in calc_rig.calcular_izaje().items():
-        texto += f"  > {k}: {v}\n"
-        
-    texto += "\n" + "=" * 70 + "\n"
-    texto += "FIN DEL REPORTE TECNICO.\n"
-    texto += "=" * 70 + "\n"
-    
+    for k, v in res_hw["Opcion 3 (Superior)"]["formatted"].items(): texto += f"    > {k}: {v}\n"
+    texto += "\n" + "-" * 50 + "\n[B] CRITERIOS DE VISUALIZACION\n"
+    for k, v in res_hw["Visualizacion"].items(): texto += f"  > {k}: {v}\n"
+    texto += "\n" + "-" * 50 + "\n[C] INGENIERIA DE PROCESAMIENTO Y DATA\n"
+    for k, v in calc_proc.calcular_procesamiento().items(): texto += f"  > {k}: {v}\n"
+    texto += "\n" + "-" * 50 + "\n[D] HARDWARE DEL PROCESADOR (TOPOLOGIA)\n"
+    for k, v in calc_proc.calcular_hardware_procesador().items(): texto += f"  > {k}: {v}\n"
+    texto += "\n" + "-" * 50 + "\n[E] INGENIERIA ELECTRICA Y CLIMATIZACION (Opcion 1)\n"
+    for k, v in calc_pwr.calcular_energia_y_clima().items(): texto += f"  > {k}: {v}\n"
+    texto += "\n" + "-" * 50 + "\n[F] INGENIERIA ESTRUCTURAL E IZAJE (Opcion 1)\n"
+    for k, v in calc_rig.calcular_izaje().items(): texto += f"  > {k}: {v}\n"
+    texto += "\n" + "=" * 70 + "\nFIN DEL REPORTE TECNICO.\n" + "=" * 70 + "\n"
     return texto
+
+def generar_excel_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
+    data = []
+    
+    # Encabezado
+    data.append(["MEDIDA SOLICITADA", f"{formato_latam(req_w/1000, 2)}m (Ancho) x {formato_latam(req_h/1000, 2)}m (Alto)"])
+    data.append(["", ""])
+    
+    # Opciones de Hardware
+    opciones = [("OPCIÓN 1: AJUSTE IDEAL", "Opcion 1 (Ideal)"), 
+                ("OPCIÓN 2: AJUSTE INFERIOR", "Opcion 2 (Inferior)"), 
+                ("OPCIÓN 3: AJUSTE SUPERIOR", "Opcion 3 (Superior)")]
+                
+    for titulo, clave in opciones:
+        data.append([f"--- {titulo} ---", ""])
+        for k, v in res_hw[clave]["formatted"].items():
+            data.append([k, v])
+        data.append(["", ""])
+
+    # Visualización
+    data.append(["--- CRITERIOS DE VISUALIZACIÓN ---", ""])
+    for k, v in res_hw["Visualizacion"].items(): data.append([k, v])
+    data.append(["", ""])
+
+    # Procesamiento y Data
+    data.append(["--- INGENIERÍA DE PROCESAMIENTO Y DATA ---", ""])
+    for k, v in calc_proc.calcular_procesamiento().items(): data.append([k, v])
+    data.append(["", ""])
+
+    # Hardware del Procesador
+    data.append(["--- HARDWARE DEL PROCESADOR ---", ""])
+    for k, v in calc_proc.calcular_hardware_procesador().items(): data.append([k, v])
+    data.append(["", ""])
+
+    # Energía
+    data.append(["--- INGENIERÍA ELÉCTRICA Y CLIMATIZACIÓN ---", ""])
+    for k, v in calc_pwr.calcular_energia_y_clima().items(): data.append([k, v])
+    data.append(["", ""])
+
+    # Rigging
+    data.append(["--- INGENIERÍA ESTRUCTURAL E IZAJE ---", ""])
+    for k, v in calc_rig.calcular_izaje().items(): data.append([k, v])
+
+    # Convertir a DataFrame de Pandas y usar el motor XlsxWriter
+    df = pd.DataFrame(data, columns=["Parámetro", "Especificación Técnica"])
+    output = io.BytesIO()
+    
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Reporte Ingeniería LED')
+        
+        # Ajuste de ancho de columnas nativo de xlsxwriter
+        worksheet = writer.sheets['Reporte Ingeniería LED']
+        worksheet.set_column('A:A', 40)
+        worksheet.set_column('B:B', 80)
+        
+    return output.getvalue()
 
 # ==========================================
 # 1. MÓDULOS DE CLASES (Core Lógico)
@@ -83,7 +116,7 @@ class LedScreenProc:
         self.res_h = res_h
         self.fis_w_mm = int(fis_w_mm)
         self.fis_h_mm = int(fis_h_mm)
-        self.num_entradas = num_entradas # <--- Nueva variable de composición
+        self.num_entradas = num_entradas
 
     def _parsear_shutter(self):
         try:
@@ -132,12 +165,10 @@ class LedScreenProc:
         }
 
     def calcular_hardware_procesador(self):
-        # 1. Capacidad Máxima Base (Referencia: Equipo/Chasis estándar 4K @ 60Hz = ~8.8M px)
         capacidad_max_4k = 8800000
         equipos_4k_necesarios = max(1, math.ceil(self.total_px / capacidad_max_4k))
         capacidad_total_instalada = equipos_4k_necesarios * capacidad_max_4k
         
-        # 2. Tarjetas de Entrada Modulares (Inputs) basadas en cantidad
         if "8K" in self.input_res:
             base_cards = self.num_entradas * 4
             tarjetas_entrada = f"{self.num_entradas}x señal(es) 8K -> Req. {base_cards}x Entradas 4K (Quad-Link) o {self.num_entradas}x Tarjetas HDMI 2.1"
@@ -145,18 +176,14 @@ class LedScreenProc:
             base_cards = self.num_entradas * 16
             tarjetas_entrada = f"{self.num_entradas}x señal(es) 16K -> Req. {base_cards}x Entradas 4K o {self.num_entradas * 4}x Tarjetas HDMI 2.1"
         elif "4K" in self.input_res:
-            tarjetas_entrada = f"{self.num_entradas}x señal(es) 4K -> Req. {math.ceil(self.num_entradas/2)}x Tarjetas de Entrada Dual-4K (o similar)"
+            tarjetas_entrada = f"{self.num_entradas}x señal(es) 4K -> Req. {math.ceil(self.num_entradas/2)}x Tarjetas Dual-4K (o similar)"
         else:
-            # Resoluciones HD o menores
-            tarjetas_entrada = f"{self.num_entradas}x señal(es) HD -> Req. {math.ceil(self.num_entradas/4)}x Tarjetas de Entrada Quad-HD"
+            tarjetas_entrada = f"{self.num_entradas}x señal(es) HD -> Req. {math.ceil(self.num_entradas/4)}x Tarjetas Quad-HD"
             
-        # 3. Tarjetas de Salida (Outputs) - Estándar modular: 16 puertos RJ45 por tarjeta
         if not hasattr(self, 'puertos_rj45'):
             self.calcular_procesamiento()
             
         tarjetas_salida = max(1, math.ceil(self.puertos_rj45 / 16))
-        
-        # 4. Interfaces Ópticas
         opt_ports = math.ceil(self.puertos_rj45 / 10) 
         if self.distancia_cable_m > 100:
             interfaces_opt = f"SÍ: {opt_ports} puertos OPT 10G (Requiere {opt_ports} conversores CVT10 en pantalla)"
@@ -303,7 +330,7 @@ class LedRiggingCalc:
 # ==========================================
 st.set_page_config(page_title="LEDSCREENCALC | Broadcast Edition", layout="wide", page_icon="🖥️")
 
-col_title, col_btn = st.columns([3, 1])
+col_title, col_btn_txt, col_btn_xls = st.columns([2.5, 1, 1])
 with col_title:
     st.title("🖥️ LEDSCREENCALC")
     st.markdown("### Simulador de Ingeniería para Pantallas LED (Broadcast & Live Events)")
@@ -330,7 +357,6 @@ with st.sidebar:
     mod_res_w = mod_res_h = mod_w = mod_h = cab_w = cab_h = None
     if ingreso_manual:
         pitch = st.number_input("Pixel Pitch (mm)", value=2.6, step=0.1, format="%.2f")
-        
         st.markdown("**Tamaño Físico (mm)**")
         c_mw, c_mh = st.columns(2)
         with c_mw:
@@ -346,16 +372,12 @@ with st.sidebar:
             mod_res_w = st.number_input("Res. Ancho", value=104, step=1)
         with c_rh:
             mod_res_h = st.number_input("Res. Alto", value=104, step=1)
-
     else:
         pitch = st.number_input("Pixel Pitch estimado (mm)", value=2.6, step=0.1, format="%.2f")
 
     st.divider()
     st.header("🎛️ Procesamiento de Video")
-    
-    # NUEVO CAMPO: CANTIDAD DE ENTRADAS
     num_entradas = st.number_input("Cantidad de Entradas (Fuentes)", min_value=1, value=1, step=1)
-    
     input_video = st.selectbox("Resolución de Entrada", ["HD (1080p)", "4K", "8K", "16K"], index=1)
     puerto_video = st.selectbox("Puerto de Conexión", ["HDMI 1.4", "HDMI 2.0", "HDMI 2.1", "DP 1.2", "DP 1.4", "12G-SDI"], index=1)
     calidad_video = st.selectbox("Profundidad de Color", ["SDR 8-bit", "HDR 10-bit", "HDR 12-bit"], index=1)
@@ -370,33 +392,26 @@ with st.sidebar:
         shutter_cam = st.text_input("Shutter de Cámara", value="1/60")
 
 # --- PROCESAMIENTO (LLAMADA A CLASES) ---
-calc_hw = LEDSCREENCALC(uso, entorno, "Video", req_w, req_h, 10, pitch, 
-                        mod_res_w, mod_res_h, mod_w, mod_h, cab_w, cab_h)
+calc_hw = LEDSCREENCALC(uso, entorno, "Video", req_w, req_h, 10, pitch, mod_res_w, mod_res_h, mod_w, mod_h, cab_w, cab_h)
 res_hw = calc_hw.generar_opciones()
 base_raw = res_hw["Opcion 1 (Ideal)"]["raw"]
 
-calc_proc = LedScreenProc(uso, base_raw["total_px"], base_raw["total_gabinetes"], 
-                          input_video, puerto_video, calidad_video, 
-                          distancia_cable_m=dist_cable, 
-                          refresh_rate_hz=hz_led, shutter_speed_str=shutter_cam,
+calc_proc = LedScreenProc(uso, base_raw["total_px"], base_raw["total_gabinetes"], input_video, puerto_video, calidad_video, 
+                          distancia_cable_m=dist_cable, refresh_rate_hz=hz_led, shutter_speed_str=shutter_cam,
                           res_w=base_raw["res_total_w"], res_h=base_raw["res_total_h"],
-                          fis_w_mm=base_raw["ancho_fisico"], fis_h_mm=base_raw["alto_fisico"],
-                          num_entradas=num_entradas) # <--- Pasamos la variable al procesador
+                          fis_w_mm=base_raw["ancho_fisico"], fis_h_mm=base_raw["alto_fisico"], num_entradas=num_entradas)
                           
 calc_pwr = LedPowerCalc(base_raw["area_m2"], voltaje=220, entorno=entorno)
 calc_rig = LedRiggingCalc(base_raw["columnas"], base_raw["filas"], base_raw["cab_w"])
 
-# --- GENERAR ARCHIVO PARA DESCARGA ---
-reporte_txt = generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+# --- BOTONES DE DESCARGA ---
+with col_btn_txt:
+    reporte_txt = generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+    st.download_button(label="📄 Descargar TXT", data=reporte_txt, file_name="Reporte_LED.txt", mime="text/plain", use_container_width=True)
 
-with col_btn:
-    st.download_button(
-        label="📄 Descargar Reporte Técnico (.txt)",
-        data=reporte_txt,
-        file_name="Reporte_Ingenieria_LED.txt",
-        mime="text/plain",
-        use_container_width=True
-    )
+with col_btn_xls:
+    reporte_xls = generar_excel_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+    st.download_button(label="📊 Descargar Excel", data=reporte_xls, file_name="Reporte_Ingenieria_LED.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
 # --- VISTA PRINCIPAL (RESULTADOS) ---
 st.markdown(f"#### Medida Solicitada: **{formato_latam(req_w/1000, 2)} m (Ancho) x {formato_latam(req_h/1000, 2)} m (Alto)**")
@@ -404,33 +419,21 @@ st.markdown(f"#### Medida Solicitada: **{formato_latam(req_w/1000, 2)} m (Ancho)
 tab1, tab2, tab3 = st.tabs(["⭐ Opción 1 (Ajuste Ideal)", "⬇️ Opción 2 (Ajuste Inferior)", "⬆️ Opción 3 (Ajuste Superior)"])
 
 def render_dict(d):
-    for k, v in d.items():
-        st.markdown(f"**{k}:** {v}")
+    for k, v in d.items(): st.markdown(f"**{k}:** {v}")
 
-with tab1:
-    render_dict(res_hw["Opcion 1 (Ideal)"]["formatted"])
-with tab2:
-    render_dict(res_hw["Opcion 2 (Inferior)"]["formatted"])
-with tab3:
-    render_dict(res_hw["Opcion 3 (Superior)"]["formatted"])
+with tab1: render_dict(res_hw["Opcion 1 (Ideal)"]["formatted"])
+with tab2: render_dict(res_hw["Opcion 2 (Inferior)"]["formatted"])
+with tab3: render_dict(res_hw["Opcion 3 (Superior)"]["formatted"])
 
 st.divider()
 
 colA, colB = st.columns(2)
 
 with colA:
-    with st.expander("👁️ CRITERIOS DE VISUALIZACIÓN", expanded=True):
-        render_dict(res_hw["Visualizacion"])
-        
-    with st.expander("🔌 INGENIERÍA ELÉCTRICA Y CLIMA (220V)", expanded=True):
-        render_dict(calc_pwr.calcular_energia_y_clima())
+    with st.expander("👁️ CRITERIOS DE VISUALIZACIÓN", expanded=True): render_dict(res_hw["Visualizacion"])
+    with st.expander("🔌 INGENIERÍA ELÉCTRICA Y CLIMA (220V)", expanded=True): render_dict(calc_pwr.calcular_energia_y_clima())
 
 with colB:
-    with st.expander("📡 DATA Y SEÑAL", expanded=True):
-        render_dict(calc_proc.calcular_procesamiento())
-        
-    with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True):
-        render_dict(calc_proc.calcular_hardware_procesador())
-        
-    with st.expander("🏗️ INGENIERÍA ESTRUCTURAL E IZAJE (DGUV-17)", expanded=True):
-        render_dict(calc_rig.calcular_izaje())
+    with st.expander("📡 DATA Y SEÑAL", expanded=True): render_dict(calc_proc.calcular_procesamiento())
+    with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True): render_dict(calc_proc.calcular_hardware_procesador())
+    with st.expander("🏗️ INGENIERÍA ESTRUCTURAL E IZAJE (DGUV-17)", expanded=True): render_dict(calc_rig.calcular_izaje())

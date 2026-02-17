@@ -331,7 +331,7 @@ st.set_page_config(page_title="LEDSCREENCALC | Broadcast Edition", layout="wide"
 col_title, col_btn_txt, col_btn_csv = st.columns([2.5, 1, 1])
 with col_title:
     st.title("🖥️ LEDSCREENCALC")
-    st.markdown("### Simulador de Ingeniería para Pantallas LED (Broadcast & Live Events)")
+    st.markdown("### Simulador para Pantallas LED (Broadcast & Live Events)")
 
 st.divider()
 
@@ -435,13 +435,13 @@ colA, colB = st.columns(2)
 with colA:
     with st.expander("👁️ CRITERIOS DE VISUALIZACIÓN", expanded=True): 
         render_dict(res_hw["Visualizacion"])
-    with st.expander("🔌 INGENIERÍA ELÉCTRICA Y CLIMA (220V)", expanded=True): 
+    with st.expander("🔌 CONSUMO ELECTRICO Y AA (220V)", expanded=True): 
         render_dict(calc_pwr.calcular_energia_y_clima())
 
 with colB:
-    with st.expander("📡 DATA Y SEÑAL", expanded=True): 
+    with st.expander("📡 DATOS Y SEÑALES", expanded=True): 
         render_dict(calc_proc.calcular_procesamiento())
     with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True): 
         render_dict(calc_proc.calcular_hardware_procesador())
-    with st.expander("🏗️ INGENIERÍA ESTRUCTURAL E IZAJE (DGUV-17)", expanded=True): 
+    with st.expander("🏗️ ESTRUCTURA Y ELEVACION (DGUV-17)", expanded=True): 
         render_dict(calc_rig.calcular_izaje())

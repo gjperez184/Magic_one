@@ -82,8 +82,11 @@ def recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_ri
 def generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     data = recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
     df = pd.DataFrame(data, columns=["Parámetro", "Especificación Técnica"])
-    # utf-8-sig para acentos y sep=';' para Excel de LatAm
-    return df.to_csv(index=False, sep=';', encoding='utf-8-sig')
+    
+    # 1. sep=',' (Excel en inglés espera comas). Pandas protege los decimales con comillas.
+    # 2. .encode('utf-8-sig') convierte el texto a bytes con firma BOM para arreglar los acentos en Excel.
+    csv_string = df.to_csv(index=False, sep=',')
+    return csv_string.encode('utf-8-sig')
 
 
 # ==========================================

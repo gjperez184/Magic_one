@@ -1,7 +1,6 @@
 import streamlit as st
 import math
 import pandas as pd
-import io
 
 # ==========================================
 # 0. FUNCIÓN DE LOCALIZACIÓN Y EXPORTACIÓN
@@ -15,7 +14,7 @@ def formato_latam(valor, decimales=2):
         return estandar.replace(',', 'X').replace('.', ',').replace('X', '.')
     return valor
 
-def generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
+def generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig, calc_spares):
     texto = "=" * 70 + "\n"
     texto += "          REPORTE DE INGENIERIA - SISTEMA LEDSCREENCALC\n"
     texto += "=" * 70 + "\n\n"
@@ -36,10 +35,12 @@ def generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     for k, v in calc_pwr.calcular_energia_y_clima().items(): texto += f"  > {k}: {v}\n"
     texto += "\n" + "-" * 50 + "\n[F] INGENIERIA ESTRUCTURAL E IZAJE (Opcion 1)\n"
     for k, v in calc_rig.calcular_izaje().items(): texto += f"  > {k}: {v}\n"
+    texto += "\n" + "-" * 50 + "\n[G] REPUESTOS SUGERIDOS (SPARE PARTS)\n"
+    for k, v in calc_spares.calcular_repuestos().items(): texto += f"  > {k}: {v}\n"
     texto += "\n" + "=" * 70 + "\nFIN DEL REPORTE TECNICO.\n" + "=" * 70 + "\n"
     return texto
 
-def recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
+def recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig, calc_spares):
     data = []
     data.append(["MEDIDA SOLICITADA", f"{formato_latam(req_w/1000, 2)}m (Ancho) x {formato_latam(req_h/1000, 2)}m (Alto)"])
     data.append(["", ""])
@@ -55,33 +56,32 @@ def recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_ri
         data.append(["", ""])
 
     data.append(["--- CRITERIOS DE VISUALIZACIÓN ---", ""])
-    for k, v in res_hw["Visualizacion"].items(): 
-        data.append([k, v])
+    for k, v in res_hw["Visualizacion"].items(): data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA DE PROCESAMIENTO Y DATA ---", ""])
-    for k, v in calc_proc.calcular_procesamiento().items(): 
-        data.append([k, v])
+    for k, v in calc_proc.calcular_procesamiento().items(): data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- HARDWARE DEL PROCESADOR ---", ""])
-    for k, v in calc_proc.calcular_hardware_procesador().items(): 
-        data.append([k, v])
+    for k, v in calc_proc.calcular_hardware_procesador().items(): data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA ELÉCTRICA Y CLIMATIZACIÓN ---", ""])
-    for k, v in calc_pwr.calcular_energia_y_clima().items(): 
-        data.append([k, v])
+    for k, v in calc_pwr.calcular_energia_y_clima().items(): data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA ESTRUCTURAL E IZAJE ---", ""])
-    for k, v in calc_rig.calcular_izaje().items(): 
-        data.append([k, v])
+    for k, v in calc_rig.calcular_izaje().items(): data.append([k, v])
+    data.append(["", ""])
+
+    data.append(["--- REPUESTOS SUGERIDOS ---", ""])
+    for k, v in calc_spares.calcular_repuestos().items(): data.append([k, v])
     
     return data
 
-def generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
-    data = recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+def generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig, calc_spares):
+    data = recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig, calc_spares)
     df = pd.DataFrame(data, columns=["Parámetro", "Especificación Técnica"])
     return df.to_csv(index=False, sep=';', encoding='utf-8-sig')
 
@@ -246,7 +246,6 @@ class LEDSCREENCALC:
         total_px = res_total_w * res_total_h
         area_m2 = (ancho_fisico / 1000) * (alto_fisico / 1000)
         
-        # Matemáticas para la diagonal
         diag_mm = math.sqrt(ancho_fisico**2 + alto_fisico**2)
         diag_in = diag_mm / 25.4
         
@@ -268,8 +267,9 @@ class LEDSCREENCALC:
 
         return {
             "raw": {"columnas": columnas, "filas": filas, "area_m2": area_m2, "total_px": total_px, 
-                    "cab_w": self.cab_w, "total_gabinetes": total_gabinetes, "res_total_w": res_total_w, 
-                    "res_total_h": res_total_h, "ancho_fisico": ancho_fisico, "alto_fisico": alto_fisico},
+                    "cab_w": self.cab_w, "total_gabinetes": total_gabinetes, "total_modulos": total_modulos,
+                    "res_total_w": res_total_w, "res_total_h": res_total_h, 
+                    "ancho_fisico": ancho_fisico, "alto_fisico": alto_fisico},
             "formatted": formatted
         }
 
@@ -334,6 +334,26 @@ class LedRiggingCalc:
             f"Capacidad Motor Req. (SF {self.factor_seguridad}:1)": f"{formato_latam(motor_sel, 0)} kg (WLL) / motor"
         }
 
+class LedSparesCalc:
+    def __init__(self, total_modulos, total_gabinetes, porcentaje):
+        self.total_modulos = total_modulos
+        self.total_gabinetes = total_gabinetes
+        self.porcentaje = porcentaje / 100.0
+
+    def calcular_repuestos(self):
+        rep_modulos = math.ceil(self.total_modulos * self.porcentaje)
+        rep_rcards = math.ceil(self.total_gabinetes * self.porcentaje)
+        rep_psu = math.ceil(self.total_gabinetes * self.porcentaje)
+        
+        pct_display = int(self.porcentaje * 100) if (self.porcentaje * 100).is_integer() else self.porcentaje * 100
+
+        return {
+            "Porcentaje Seleccionado": f"{pct_display}% de las piezas",
+            "Módulos LED": f"{rep_modulos} und.",
+            "Tarjetas Receptoras (R-Cards)": f"{rep_rcards} und.",
+            "Fuentes de Poder (PSU)": f"{rep_psu} und."
+        }
+
 # ==========================================
 # 2. INTERFAZ GRÁFICA (Streamlit UI)
 # ==========================================
@@ -341,8 +361,8 @@ st.set_page_config(page_title="LEDSCREENCALC | Broadcast Edition", layout="wide"
 
 col_title, col_btn_txt, col_btn_csv = st.columns([2.5, 1, 1])
 with col_title:
-    st.title("🖥️ LEDSCREEN-CALCULATOR")
-    st.markdown("### Simulador de Pantallas LED")
+    st.title("🖥️ LEDSCREENCALC")
+    st.markdown("### Simulador de Ingeniería para Pantallas LED (Broadcast & Live Events)")
 
 st.divider()
 
@@ -362,7 +382,6 @@ with st.sidebar:
     st.divider()
     st.header("🛠️ Configuración de Hardware")
     
-    # Nuevo Campo Inteligente de Brillo
     valor_brillo_defecto = 1000 if entorno == "Indoor" else 5000
     brillo_nits = st.number_input("Brillo Objetivo (Nits)", min_value=100, value=valor_brillo_defecto, step=100)
 
@@ -405,6 +424,11 @@ with st.sidebar:
         hz_led = st.selectbox("Refresco Pantalla (Hz)", [1920.0, 3840.0, 7680.0], index=1)
         shutter_cam = st.text_input("Shutter de Cámara", value="1/60")
 
+    st.divider()
+    st.header("🧰 Repuestos (Spare Parts)")
+    # El índice 2 corresponde a 10.0%
+    porcentaje_rep = st.selectbox("Porcentaje Sugerido", [2.5, 5.0, 10.0], index=2, format_func=lambda x: f"{x}%")
+
 # --- PROCESAMIENTO (LLAMADA A CLASES) ---
 calc_hw = LEDSCREENCALC(uso, entorno, "Video", req_w, req_h, 10, pitch, mod_res_w, mod_res_h, mod_w, mod_h, cab_w, cab_h, brillo=brillo_nits)
 res_hw = calc_hw.generar_opciones()
@@ -417,15 +441,16 @@ calc_proc = LedScreenProc(uso, base_raw["total_px"], base_raw["total_gabinetes"]
                           
 calc_pwr = LedPowerCalc(base_raw["area_m2"], voltaje=220, entorno=entorno)
 calc_rig = LedRiggingCalc(base_raw["columnas"], base_raw["filas"], base_raw["cab_w"])
+calc_spares = LedSparesCalc(base_raw["total_modulos"], base_raw["total_gabinetes"], porcentaje_rep)
 
 # --- BOTONES DE DESCARGA ---
 with col_btn_txt:
-    reporte_txt = generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+    reporte_txt = generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig, calc_spares)
     st.download_button(label="📄 TXT Plano", data=reporte_txt, file_name="Reporte_LED.txt", mime="text/plain", use_container_width=True)
 
 with col_btn_csv:
-    reporte_csv = generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
-    st.download_button(label="📝 CSV (Excel)", data=reporte_csv, file_name="Reporte_Ingenieria_LED.csv", mime="text/csv", use_container_width=True)
+    reporte_csv = generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig, calc_spares)
+    st.download_button(label="📝 CSV (LatAm Excel)", data=reporte_csv, file_name="Reporte_Ingenieria_LED.csv", mime="text/csv", use_container_width=True)
 
 # --- VISTA PRINCIPAL (RESULTADOS) ---
 st.markdown(f"#### Medida Solicitada: **{formato_latam(req_w/1000, 2)} m (Ancho) x {formato_latam(req_h/1000, 2)} m (Alto)**")
@@ -450,14 +475,15 @@ colA, colB = st.columns(2)
 with colA:
     with st.expander("👁️ CRITERIOS DE VISUALIZACIÓN", expanded=True): 
         render_dict(res_hw["Visualizacion"])
-    with st.expander("🔌 CONSUMO ELECTRICO Y AA (220V)", expanded=True): 
+    with st.expander("🔌 INGENIERÍA ELÉCTRICA Y CLIMA (220V)", expanded=True): 
         render_dict(calc_pwr.calcular_energia_y_clima())
+    with st.expander("🧰 REPUESTOS SUGERIDOS (SPARE PARTS)", expanded=True): 
+        render_dict(calc_spares.calcular_repuestos())
 
 with colB:
-    with st.expander("📡 DATOS Y SEÑALES", expanded=True): 
+    with st.expander("📡 DATA Y SEÑAL", expanded=True): 
         render_dict(calc_proc.calcular_procesamiento())
     with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True): 
         render_dict(calc_proc.calcular_hardware_procesador())
-    with st.expander("🏗️ ESTRUCTURA Y ELEVACION (DGUV-17)", expanded=True): 
+    with st.expander("🏗️ INGENIERÍA ESTRUCTURAL E IZAJE (DGUV-17)", expanded=True): 
         render_dict(calc_rig.calcular_izaje())
-

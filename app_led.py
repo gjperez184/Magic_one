@@ -1,7 +1,6 @@
 import streamlit as st
 import math
 import pandas as pd
-import io
 
 # ==========================================
 # 0. FUNCIÓN DE LOCALIZACIÓN Y EXPORTACIÓN
@@ -55,30 +54,34 @@ def recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_ri
         data.append(["", ""])
 
     data.append(["--- CRITERIOS DE VISUALIZACIÓN ---", ""])
-    for k, v in res_hw["Visualizacion"].items(): data.append([k, v])
+    for k, v in res_hw["Visualizacion"].items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA DE PROCESAMIENTO Y DATA ---", ""])
-    for k, v in calc_proc.calcular_procesamiento().items(): data.append([k, v])
+    for k, v in calc_proc.calcular_procesamiento().items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- HARDWARE DEL PROCESADOR ---", ""])
-    for k, v in calc_proc.calcular_hardware_procesador().items(): data.append([k, v])
+    for k, v in calc_proc.calcular_hardware_procesador().items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA ELÉCTRICA Y CLIMATIZACIÓN ---", ""])
-    for k, v in calc_pwr.calcular_energia_y_clima().items(): data.append([k, v])
+    for k, v in calc_pwr.calcular_energia_y_clima().items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA ESTRUCTURAL E IZAJE ---", ""])
-    for k, v in calc_rig.calcular_izaje().items(): data.append([k, v])
+    for k, v in calc_rig.calcular_izaje().items(): 
+        data.append([k, v])
     
     return data
 
 def generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     data = recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
     df = pd.DataFrame(data, columns=["Parámetro", "Especificación Técnica"])
-    # utf-8-sig para acentos y sep=';' para Excel de LatAm
     return df.to_csv(index=False, sep=';', encoding='utf-8-sig')
 
 
@@ -117,8 +120,13 @@ class LedScreenProc:
 
     def _calcular_ratio(self, w, h):
         if w == 0 or h == 0: return "N/A"
-        divisor = math.gcd(w, h)
-        return f"{w//divisor}:{h//divisor}"
+        divisor = math.gcd(int(w), int(h))
+        # Calculamos la proporción simplificada
+        relacion = f"{int(w)//divisor}:{int(h)//divisor}"
+        # Calculamos el valor decimal exacto
+        decimal = w / h
+        # Retornamos ambos con el formato regional (ej. 16:9 (1,77))
+        return f"{relacion} ({formato_latam(decimal, 2)})"
 
     def calcular_procesamiento(self):
         capacidad_base_px = 650000 
@@ -143,7 +151,8 @@ class LedScreenProc:
 
         return {
             "Total Px Calculados": f"{formato_latam(self.total_px, 0)} px",
-            "Relación de Aspecto Lógica": f"{ratio_logico} (Mapeo) vs {ratio_fisico} (Física)",
+            "Relación de Aspecto Física": ratio_fisico,
+            "Relación de Aspecto Lógica (Mapeo)": ratio_logico,
             "Tasa de Refrescamiento": f"{formato_latam(self.refresh_rate_hz, 0)} Hz",
             "Sincronización de Cámara": res_sync,
             "Puertos RJ45 de Salida Req.": self.puertos_rj45,
@@ -211,7 +220,6 @@ class LEDSCREENCALC:
             self.cab_res_w = int(mod_res_w * self.modulos_por_cab_w)
             self.cab_res_h = int(mod_res_h * self.modulos_por_cab_h)
         else:
-            # --- CÁLCULO AUTOMÁTICO BASADO EN ESTÁNDARES ---
             if self.entorno == "Indoor":
                 self.cab_w, self.cab_h = 500.0, 500.0
                 self.modulos_por_cab_w = 2
@@ -241,7 +249,6 @@ class LEDSCREENCALC:
         
         formatted = {}
         
-        # Etiqueta visual para que el usuario sepa si es exacto o un estimado
         etiqueta_auto = "" if self.datos_marca_suministrados else " (Auto-Estándar)"
 
         formatted["Resolución de módulos (px)"] = f"{formato_latam(self.mod_res_w, 0)} (W) x {formato_latam(self.mod_res_h, 0)} (H){etiqueta_auto}"
@@ -435,11 +442,11 @@ colA, colB = st.columns(2)
 with colA:
     with st.expander("👁️ CRITERIOS DE VISUALIZACIÓN", expanded=True): 
         render_dict(res_hw["Visualizacion"])
-    with st.expander("🔌 CONSUMO ELECTRICO Y AA (220V)", expanded=True): 
+    with st.expander("🔌CONSUMO Y AA (220V)", expanded=True): 
         render_dict(calc_pwr.calcular_energia_y_clima())
 
 with colB:
-    with st.expander("📡 DATOS Y SEÑALES", expanded=True): 
+    with st.expander("📡 DATA¿OS Y SEÑALES", expanded=True): 
         render_dict(calc_proc.calcular_procesamiento())
     with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True): 
         render_dict(calc_proc.calcular_hardware_procesador())

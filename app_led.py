@@ -446,9 +446,10 @@ with colA:
         render_dict(calc_pwr.calcular_energia_y_clima())
 
 with colB:
-    with st.expander("📡 DATA¿OS Y SEÑALES", expanded=True): 
+    with st.expander("📡 DATOS Y SEÑALES", expanded=True): 
         render_dict(calc_proc.calcular_procesamiento())
     with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True): 
         render_dict(calc_proc.calcular_hardware_procesador())
     with st.expander("🏗️ ESTRUCTURA Y ELEVACION (DGUV-17)", expanded=True): 
         render_dict(calc_rig.calcular_izaje())
+

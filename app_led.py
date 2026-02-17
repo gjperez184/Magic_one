@@ -1,6 +1,7 @@
 import streamlit as st
 import math
 import pandas as pd
+import io
 
 # ==========================================
 # 0. FUNCIÓN DE LOCALIZACIÓN Y EXPORTACIÓN
@@ -121,11 +122,8 @@ class LedScreenProc:
     def _calcular_ratio(self, w, h):
         if w == 0 or h == 0: return "N/A"
         divisor = math.gcd(int(w), int(h))
-        # Calculamos la proporción simplificada
         relacion = f"{int(w)//divisor}:{int(h)//divisor}"
-        # Calculamos el valor decimal exacto
         decimal = w / h
-        # Retornamos ambos con el formato regional (ej. 16:9 (1,77))
         return f"{relacion} ({formato_latam(decimal, 2)})"
 
     def calcular_procesamiento(self):
@@ -196,7 +194,7 @@ class LedScreenProc:
 
 class LEDSCREENCALC:
     def __init__(self, uso, entorno, contenido, dim_req_w, dim_req_h, dist_vis_m, pitch, 
-                 mod_res_w=None, mod_res_h=None, mod_w=None, mod_h=None, cab_w=None, cab_h=None):
+                 mod_res_w=None, mod_res_h=None, mod_w=None, mod_h=None, cab_w=None, cab_h=None, brillo=1000):
         self.uso = uso
         self.entorno = entorno
         self.contenido = contenido
@@ -204,6 +202,7 @@ class LEDSCREENCALC:
         self.req_h = dim_req_h
         self.dist_vis_m = dist_vis_m
         self.pitch = pitch
+        self.brillo = brillo
         
         self.datos_marca_suministrados = all(v is not None for v in [mod_res_w, mod_res_h, mod_w, mod_h, cab_w, cab_h])
         
@@ -247,8 +246,11 @@ class LEDSCREENCALC:
         total_px = res_total_w * res_total_h
         area_m2 = (ancho_fisico / 1000) * (alto_fisico / 1000)
         
-        formatted = {}
+        # Matemáticas para la diagonal
+        diag_mm = math.sqrt(ancho_fisico**2 + alto_fisico**2)
+        diag_in = diag_mm / 25.4
         
+        formatted = {}
         etiqueta_auto = "" if self.datos_marca_suministrados else " (Auto-Estándar)"
 
         formatted["Resolución de módulos (px)"] = f"{formato_latam(self.mod_res_w, 0)} (W) x {formato_latam(self.mod_res_h, 0)} (H){etiqueta_auto}"
@@ -260,7 +262,9 @@ class LEDSCREENCALC:
         formatted["Piezas"] = f"{total_gabinetes} gabinetes ({total_modulos} módulos)"
         formatted["Resolución Total"] = f"{formato_latam(res_total_w, 0)} x {formato_latam(res_total_h, 0)} ({formato_latam(total_px, 0)} px)"
         formatted["Dimensiones Finales"] = f"{formato_latam(ancho_fisico, 1)} x {formato_latam(alto_fisico, 1)} mm"
+        formatted["Diagonal de Pantalla"] = f"{formato_latam(diag_in, 2)}\" Pulgadas ({formato_latam(diag_mm, 2)} mm)"
         formatted["Tamaño en m²"] = f"{formato_latam(area_m2, 2)} m²"
+        formatted["Brillo Objetivo"] = f"{formato_latam(self.brillo, 0)} Nits (cd/m²)"
 
         return {
             "raw": {"columnas": columnas, "filas": filas, "area_m2": area_m2, "total_px": total_px, 
@@ -338,7 +342,7 @@ st.set_page_config(page_title="LEDSCREENCALC | Broadcast Edition", layout="wide"
 col_title, col_btn_txt, col_btn_csv = st.columns([2.5, 1, 1])
 with col_title:
     st.title("🖥️ LEDSCREENCALC")
-    st.markdown("### Simulador para Pantallas LED (Broadcast & Live Events)")
+    st.markdown("### Simulador de Ingeniería para Pantallas LED (Broadcast & Live Events)")
 
 st.divider()
 
@@ -357,6 +361,11 @@ with st.sidebar:
     
     st.divider()
     st.header("🛠️ Configuración de Hardware")
+    
+    # Nuevo Campo Inteligente de Brillo
+    valor_brillo_defecto = 1000 if entorno == "Indoor" else 5000
+    brillo_nits = st.number_input("Brillo Objetivo (Nits)", min_value=100, value=valor_brillo_defecto, step=100)
+
     ingreso_manual = st.toggle("Ingresar Marca/Modelo Manual")
     
     mod_res_w = mod_res_h = mod_w = mod_h = cab_w = cab_h = None
@@ -397,7 +406,7 @@ with st.sidebar:
         shutter_cam = st.text_input("Shutter de Cámara", value="1/60")
 
 # --- PROCESAMIENTO (LLAMADA A CLASES) ---
-calc_hw = LEDSCREENCALC(uso, entorno, "Video", req_w, req_h, 10, pitch, mod_res_w, mod_res_h, mod_w, mod_h, cab_w, cab_h)
+calc_hw = LEDSCREENCALC(uso, entorno, "Video", req_w, req_h, 10, pitch, mod_res_w, mod_res_h, mod_w, mod_h, cab_w, cab_h, brillo=brillo_nits)
 res_hw = calc_hw.generar_opciones()
 base_raw = res_hw["Opcion 1 (Ideal)"]["raw"]
 
@@ -417,7 +426,6 @@ with col_btn_txt:
 with col_btn_csv:
     reporte_csv = generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
     st.download_button(label="📝 CSV (LatAm Excel)", data=reporte_csv, file_name="Reporte_Ingenieria_LED.csv", mime="text/csv", use_container_width=True)
-
 
 # --- VISTA PRINCIPAL (RESULTADOS) ---
 st.markdown(f"#### Medida Solicitada: **{formato_latam(req_w/1000, 2)} m (Ancho) x {formato_latam(req_h/1000, 2)} m (Alto)**")
@@ -442,14 +450,13 @@ colA, colB = st.columns(2)
 with colA:
     with st.expander("👁️ CRITERIOS DE VISUALIZACIÓN", expanded=True): 
         render_dict(res_hw["Visualizacion"])
-    with st.expander("🔌CONSUMO Y AA (220V)", expanded=True): 
+    with st.expander("🔌 INGENIERÍA ELÉCTRICA Y CLIMA (220V)", expanded=True): 
         render_dict(calc_pwr.calcular_energia_y_clima())
 
 with colB:
-    with st.expander("📡 DATOS Y SEÑALES", expanded=True): 
+    with st.expander("📡 DATA Y SEÑAL", expanded=True): 
         render_dict(calc_proc.calcular_procesamiento())
     with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True): 
         render_dict(calc_proc.calcular_hardware_procesador())
-    with st.expander("🏗️ ESTRUCTURA Y ELEVACION (DGUV-17)", expanded=True): 
+    with st.expander("🏗️ INGENIERÍA ESTRUCTURAL E IZAJE (DGUV-17)", expanded=True): 
         render_dict(calc_rig.calcular_izaje())
-

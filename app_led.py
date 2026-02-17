@@ -1,7 +1,6 @@
 import streamlit as st
 import math
 import pandas as pd
-import io
 
 # ==========================================
 # 0. FUNCIÓN DE LOCALIZACIÓN Y EXPORTACIÓN
@@ -50,35 +49,42 @@ def recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_ri
                 
     for titulo, clave in opciones:
         data.append([f"--- {titulo} ---", ""])
-        for k, v in res_hw[clave]["formatted"].items(): data.append([k, v])
+        for k, v in res_hw[clave]["formatted"].items(): 
+            data.append([k, v])
         data.append(["", ""])
 
     data.append(["--- CRITERIOS DE VISUALIZACIÓN ---", ""])
-    for k, v in res_hw["Visualizacion"].items(): data.append([k, v])
+    for k, v in res_hw["Visualizacion"].items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA DE PROCESAMIENTO Y DATA ---", ""])
-    for k, v in calc_proc.calcular_procesamiento().items(): data.append([k, v])
+    for k, v in calc_proc.calcular_procesamiento().items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- HARDWARE DEL PROCESADOR ---", ""])
-    for k, v in calc_proc.calcular_hardware_procesador().items(): data.append([k, v])
+    for k, v in calc_proc.calcular_hardware_procesador().items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA ELÉCTRICA Y CLIMATIZACIÓN ---", ""])
-    for k, v in calc_pwr.calcular_energia_y_clima().items(): data.append([k, v])
+    for k, v in calc_pwr.calcular_energia_y_clima().items(): 
+        data.append([k, v])
     data.append(["", ""])
 
     data.append(["--- INGENIERÍA ESTRUCTURAL E IZAJE ---", ""])
-    for k, v in calc_rig.calcular_izaje().items(): data.append([k, v])
+    for k, v in calc_rig.calcular_izaje().items(): 
+        data.append([k, v])
     
     return data
 
 def generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig):
     data = recopilar_datos_tabulares(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
     df = pd.DataFrame(data, columns=["Parámetro", "Especificación Técnica"])
-    # Magia para Excel LatAm: sep=';' y encoding='utf-8-sig'
+    # utf-8-sig para acentos y sep=';' para Excel de LatAm
     return df.to_csv(index=False, sep=';', encoding='utf-8-sig')
+
 
 # ==========================================
 # 1. MÓDULOS DE CLASES (Core Lógico)
@@ -365,4 +371,70 @@ with st.sidebar:
     num_entradas = st.number_input("Cantidad de Entradas (Fuentes)", min_value=1, value=1, step=1)
     input_video = st.selectbox("Resolución de Entrada", ["HD (1080p)", "4K", "8K", "16K"], index=1)
     puerto_video = st.selectbox("Puerto de Conexión", ["HDMI 1.4", "HDMI 2.0", "HDMI 2.1", "DP 1.2", "DP 1.4", "12G-SDI"], index=1)
-    calidad_video = st
+    calidad_video = st.selectbox("Profundidad de Color", ["SDR 8-bit", "HDR 10-bit", "HDR 12-bit"], index=1)
+    dist_cable = st.number_input("Distancia a Control (m)", min_value=1.0, value=50.0, step=10.0, format="%.1f")
+
+    hz_led = 3840.0
+    shutter_cam = "1/60"
+    if uso in ["Cine", "TV"]:
+        st.divider()
+        st.header("🎥 Setup de Cámara (Broadcast)")
+        hz_led = st.selectbox("Refresco Pantalla (Hz)", [1920.0, 3840.0, 7680.0], index=1)
+        shutter_cam = st.text_input("Shutter de Cámara", value="1/60")
+
+# --- PROCESAMIENTO (LLAMADA A CLASES) ---
+calc_hw = LEDSCREENCALC(uso, entorno, "Video", req_w, req_h, 10, pitch, mod_res_w, mod_res_h, mod_w, mod_h, cab_w, cab_h)
+res_hw = calc_hw.generar_opciones()
+base_raw = res_hw["Opcion 1 (Ideal)"]["raw"]
+
+calc_proc = LedScreenProc(uso, base_raw["total_px"], base_raw["total_gabinetes"], input_video, puerto_video, calidad_video, 
+                          distancia_cable_m=dist_cable, refresh_rate_hz=hz_led, shutter_speed_str=shutter_cam,
+                          res_w=base_raw["res_total_w"], res_h=base_raw["res_total_h"],
+                          fis_w_mm=base_raw["ancho_fisico"], fis_h_mm=base_raw["alto_fisico"], num_entradas=num_entradas)
+                          
+calc_pwr = LedPowerCalc(base_raw["area_m2"], voltaje=220, entorno=entorno)
+calc_rig = LedRiggingCalc(base_raw["columnas"], base_raw["filas"], base_raw["cab_w"])
+
+# --- BOTONES DE DESCARGA ---
+with col_btn_txt:
+    reporte_txt = generar_texto_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+    st.download_button(label="📄 TXT Plano", data=reporte_txt, file_name="Reporte_LED.txt", mime="text/plain", use_container_width=True)
+
+with col_btn_csv:
+    reporte_csv = generar_csv_reporte(req_w, req_h, res_hw, calc_proc, calc_pwr, calc_rig)
+    st.download_button(label="📝 CSV (LatAm Excel)", data=reporte_csv, file_name="Reporte_Ingenieria_LED.csv", mime="text/csv", use_container_width=True)
+
+
+# --- VISTA PRINCIPAL (RESULTADOS) ---
+st.markdown(f"#### Medida Solicitada: **{formato_latam(req_w/1000, 2)} m (Ancho) x {formato_latam(req_h/1000, 2)} m (Alto)**")
+
+tab1, tab2, tab3 = st.tabs(["⭐ Opción 1 (Ajuste Ideal)", "⬇️ Opción 2 (Ajuste Inferior)", "⬆️ Opción 3 (Ajuste Superior)"])
+
+def render_dict(d):
+    for k, v in d.items(): 
+        st.markdown(f"**{k}:** {v}")
+
+with tab1: 
+    render_dict(res_hw["Opcion 1 (Ideal)"]["formatted"])
+with tab2: 
+    render_dict(res_hw["Opcion 2 (Inferior)"]["formatted"])
+with tab3: 
+    render_dict(res_hw["Opcion 3 (Superior)"]["formatted"])
+
+st.divider()
+
+colA, colB = st.columns(2)
+
+with colA:
+    with st.expander("👁️ CRITERIOS DE VISUALIZACIÓN", expanded=True): 
+        render_dict(res_hw["Visualizacion"])
+    with st.expander("🔌 INGENIERÍA ELÉCTRICA Y CLIMA (220V)", expanded=True): 
+        render_dict(calc_pwr.calcular_energia_y_clima())
+
+with colB:
+    with st.expander("📡 DATA Y SEÑAL", expanded=True): 
+        render_dict(calc_proc.calcular_procesamiento())
+    with st.expander("🎛️ HARDWARE DEL PROCESADOR", expanded=True): 
+        render_dict(calc_proc.calcular_hardware_procesador())
+    with st.expander("🏗️ INGENIERÍA ESTRUCTURAL E IZAJE (DGUV-17)", expanded=True): 
+        render_dict(calc_rig.calcular_izaje())
